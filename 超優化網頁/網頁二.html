@@ -1,0 +1,164 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>校系設定最終評估完整版 (含移除功能)</title>
+    <style>
+        body {
+            font-family: 'Arial', 'Helvetica Neue', Helvetica, sans-serif;
+            background-color: #f7f9fc;
+            color: #333333;
+            padding: 20px;
+            margin: 0;
+            text-align: center;
+        }
+        input, select, button {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            transition: all 0.3s ease;
+        }
+        .card {
+            background-color: #ffffff;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+            margin: 20px auto;
+            max-width: 900px;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+</head>
+<body>
+
+<div class="card">
+    <h2>校系設定</h2>
+    <select id="yearList" onchange="updateSchools()">
+        <option value="">選擇年度</option>
+    </select>
+    <select id="schoolList" onchange="updateDepartments()">
+        <option value="">選擇大學校名</option>
+    </select>
+    <select id="departmentList" onchange="displayDepartmentDetails()">
+        <option value="">選擇科系名稱</option>
+    </select>
+    <div id="departmentResults"></div>
+    <button onclick="addToEvaluation()">加入評估</button>
+</div>
+
+<div class="card">
+    <h2>評估清單 (最多10個)</h2>
+    <div id="evaluationList"></div>
+</div>
+
+<script>
+let csvData;
+let evaluationData = [];
+
+Papa.parse("111_112_113_合併倍率資料.csv", {
+    download: true,
+    header: true,
+    complete: function(results) {
+        csvData = results.data;
+        initializeYearList();
+    }
+});
+
+function initializeYearList() {
+    let years = [...new Set(csvData.map(d => d['年度']).filter(year => year))];
+    let yearList = document.getElementById('yearList');
+    yearList.innerHTML = '<option value="">選擇年度</option>';
+    years.forEach(year => {
+        yearList.innerHTML += `<option value="${year}">${year}</option>`;
+    });
+}
+
+function updateSchools() {
+    let year = document.getElementById('yearList').value;
+    let schools = [...new Set(csvData.filter(d => d['年度'] === year).map(d => d['校名']))];
+    let schoolList = document.getElementById('schoolList');
+    schoolList.innerHTML = '<option value="">選擇大學校名</option>';
+    schools.forEach(school => {
+        schoolList.innerHTML += `<option value="${school}">${school}</option>`;
+    });
+    document.getElementById('departmentList').innerHTML = '<option value="">選擇科系名稱</option>';
+}
+
+function updateDepartments() {
+    let year = document.getElementById('yearList').value;
+    let school = document.getElementById('schoolList').value;
+    let departments = csvData.filter(d => d['年度'] === year && d['校名'] === school);
+    let departmentList = document.getElementById('departmentList');
+    departmentList.innerHTML = '<option value="">選擇科系名稱</option>';
+    departments.forEach((dept, index) => {
+        departmentList.innerHTML += `<option value='${index}'>${dept['系組名']}</option>`;
+    });
+}
+
+function displayDepartmentDetails() {
+    let index = document.getElementById('departmentList').value;
+    if (index === '') return;
+
+    let year = document.getElementById('yearList').value;
+    let school = document.getElementById('schoolList').value;
+    let departments = csvData.filter(d => d['年度'] === year && d['校名'] === school);
+    let deptData = departments[index];
+
+    if (!deptData) return;
+
+    let html = `<div class="card dept">
+        <div><strong>校系名稱:</strong> ${deptData['校名']} ${deptData['系組名']}</div>`;
+
+    let subjects = ["國倍率", "英倍率", "數A倍率", "數B倍率", "社會倍率", "自然倍率", "數甲倍率", "物倍率", "化倍率", "生倍率", "歷倍率", "地倍率", "公倍率"];
+
+    html += `<div style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:10px;">`;
+    subjects.forEach(sub => {
+        let weight = deptData[sub] || 0;
+        html += `<div>${sub}: ${weight}</div>`;
+    });
+    html += `</div>`;
+
+    html += `<div style="margin-top:10px;"><strong>最低錄取分數:</strong> ${deptData['普通生錄取分數']} / 錄取人數: ${deptData['錄取人數']}</div></div>`;
+
+    document.getElementById('departmentResults').innerHTML = html;
+}
+
+function addToEvaluation() {
+    if(evaluationData.length >= 10) {
+        alert("最多只能評估10個校系。");
+        return;
+    }
+    let index = document.getElementById('departmentList').value;
+    if (index === '') return;
+
+    let year = document.getElementById('yearList').value;
+    let school = document.getElementById('schoolList').value;
+    let departments = csvData.filter(d => d['年度'] === year && d['校名'] === school);
+    let deptData = departments[index];
+
+    evaluationData.push(deptData);
+    renderEvaluationList();
+}
+
+function removeEvaluation(index) {
+    evaluationData.splice(index, 1);
+    renderEvaluationList();
+}
+
+function renderEvaluationList() {
+    let listHtml = "";
+    evaluationData.forEach((dept, idx) => {
+        listHtml += `<div>${idx+1}. ${dept['校名']} ${dept['系組名']} (${dept['年度']}) 
+        <button onclick="removeEvaluation(${idx})">移除</button><br>
+        國倍率: ${dept['國倍率']}, 英倍率: ${dept['英倍率']}, 數A倍率: ${dept['數A倍率']}, 數B倍率: ${dept['數B倍率']}, 社會倍率: ${dept['社會倍率']}, 自然倍率: ${dept['自然倍率']}<br>
+        數甲倍率: ${dept['數甲倍率']}, 物倍率: ${dept['物倍率']}, 化倍率: ${dept['化倍率']}, 生倍率: ${dept['生倍率']}, 歷倍率: ${dept['歷倍率']}, 地倍率: ${dept['地倍率']}, 公倍率: ${dept['公倍率']}<br>
+        最低分數: ${dept['普通生錄取分數']} / 錄取人數: ${dept['錄取人數']}</div><hr>`;
+    });
+    document.getElementById('evaluationList').innerHTML = listHtml;
+}
+</script>
+
+</body>
+</html>
