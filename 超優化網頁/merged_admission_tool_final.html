@@ -1,0 +1,123 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>智慧升學評估工具（合併版）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+</head>
+<body>
+  <h2>評估清單</h2>
+  <div id="evaluationList"></div>
+
+  <script>
+    const subjectWeights = ["國倍率", "英倍率", "數A倍率", "數B倍率", "社會倍率", "自然倍率", "數甲倍率", "物倍率", "化倍率", "生倍率", "歷倍率", "地倍率", "公倍率"];
+    const advancedSubjects = ["數甲", "物", "化", "生", "歷", "地", "公"];
+    const userScores = {
+      "國文": {min: 10, max: 13},
+      "英文": {min: 8, max: 12},
+      "數A": {min: 9, max: 12},
+      "數B": {min: 7, max: 10},
+      "社會": {min: 6, max: 9},
+      "自然": {min: 7, max: 11}
+    };
+    const evaluationData = [{
+      "年度": "113",
+      "校名": "國立範例大學",
+      "系組名": "資訊工程學系",
+      "普通生錄取分數": "420",
+      "錄取人數": "50",
+      "國倍率": "1.25", "英倍率": "1.25", "數A倍率": "1.5", "數B倍率": "0", "社會倍率": "1",
+      "自然倍率": "1", "數甲倍率": "1.5", "物倍率": "1", "化倍率": "0.5", "生倍率": "0",
+      "歷倍率": "0", "地倍率": "0", "公倍率": "0"
+    }];
+
+    function renderEvaluationList() {
+      const elist = document.getElementById('evaluationList');
+      elist.innerHTML = '';
+      evaluationData.forEach((dept, idx) => {
+        const minScore = parseFloat(dept['普通生錄取分數']) || 0;
+        let totalHigh = 0, totalLow = 0, advancedWeightSum = 0;
+
+        const mapping = {
+          '國文': '國倍率', '英文': '英倍率', '數A': '數A倍率',
+          '數B': '數B倍率', '社會': '社會倍率', '自然': '自然倍率'
+        };
+
+        for (let sub in mapping) {
+          const weightKey = mapping[sub];
+          const weight = parseFloat(dept[weightKey] || 0);
+          const score = userScores[sub] || { min: 0, max: 0 };
+          totalHigh += score.max * weight;
+          totalLow += score.min * weight;
+        }
+
+        advancedSubjects.forEach(sub => {
+          const weight = parseFloat(dept[sub + '倍率'] || 0);
+          advancedWeightSum += weight;
+        });
+
+        const avgMin = ((minScore - totalHigh) / (advancedWeightSum || 1)).toFixed(2);
+        const avgMax = ((minScore - totalLow) / (advancedWeightSum || 1)).toFixed(2);
+
+        elist.innerHTML += `
+          <div><strong>${idx+1}. ${dept['年度']} ${dept['校名']} ${dept['系組名']}</strong><br>
+          各科倍率：${subjectWeights.map(w => `${w}: ${dept[w] || 0}`).join(' ｜ ')}<br>
+          最低錄取分數：${minScore} ｜ 錄取人數：${dept['錄取人數'] || 'N/A'}<br>
+          🔹 最低分科單科平均級分：${avgMin} ｜ 🔸 最高分科單科平均級分：${avgMax}<br><hr></div>`;
+      });
+      elist.innerHTML += `<button onclick="generatePDF()">📄 產生 PDF 報表</button>`;
+    }
+
+    async function generatePDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.setFontSize(14);
+      doc.text("升學評估清單報表", 10, 10);
+      let y = 20;
+
+      evaluationData.forEach((dept, idx) => {
+        const minScore = parseFloat(dept['普通生錄取分數']) || 0;
+        let totalHigh = 0, totalLow = 0, advancedWeightSum = 0;
+        const mapping = {
+          '國文': '國倍率', '英文': '英倍率', '數A': '數A倍率',
+          '數B': '數B倍率', '社會': '社會倍率', '自然': '自然倍率'
+        };
+        for (let sub in mapping) {
+          const weight = parseFloat(dept[mapping[sub]] || 0);
+          const score = userScores[sub] || { min: 0, max: 0 };
+          totalHigh += score.max * weight;
+          totalLow += score.min * weight;
+        }
+        advancedSubjects.forEach(sub => {
+          const weight = parseFloat(dept[sub + '倍率'] || 0);
+          advancedWeightSum += weight;
+        });
+        const avgMin = ((minScore - totalHigh) / (advancedWeightSum || 1)).toFixed(2);
+        const avgMax = ((minScore - totalLow) / (advancedWeightSum || 1)).toFixed(2);
+
+        const lines = [
+          `${idx + 1}. ${dept['年度']} ${dept['校名']} ${dept['系組名']}`,
+          `最低錄取分數: ${minScore}，錄取人數: ${dept['錄取人數'] || 'N/A'}`,
+          `最低平均級分: ${avgMin}，最高平均級分: ${avgMax}`,
+          `各科倍率: ${subjectWeights.map(w => `${w}:${dept[w] || 0}`).join('｜')}`
+        ];
+
+        lines.forEach(line => {
+          if (y > 270) { doc.addPage(); y = 20; }
+          doc.text(line, 10, y);
+          y += 8;
+        });
+
+        y += 4;
+      });
+
+      doc.save("升學評估報表.pdf");
+    }
+
+    renderEvaluationList();
+  </script>
+</body>
+</html>
